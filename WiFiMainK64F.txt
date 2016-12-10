@@ -1,0 +1,46 @@
+#include "mbed.h"
+#include "rtos.h"
+#include "config.h"
+#include "security.h"
+#include "easy-connect.h"
+#include "simple-mbed-client.h"
+
+SimpleMbedClient client;
+
+// Declare our peripherals here
+
+// We need a way to signal from an interrupt context -> main thread, use a Semaphore for it...
+Semaphore updates(0);
+
+// YOUR CODE HERE
+
+// Registered callback for mbed Client
+DigitalOut statusLed(LED1, 1);
+void registered() {
+  statusLed = 0;
+}
+
+int main(int, char**) {
+  
+  
+  NetworkInterface* network = easy_connect(true);
+  if (!network) {
+    printf("Connect to internet failed... See serial output.\n");
+    return 1;
+  }
+
+  struct MbedClientOptions options = client.get_default_options();
+  options.DeviceType = "light-system";
+  if (!client.setup(options, network)) {
+    printf("Setting up mbed_client failed...\n");
+    return 1;
+  }
+
+  client.on_registered(&registered);
+
+  while (1) {
+    int v = updates.wait(25000);
+    
+    client.keep_alive();
+  }
+}
