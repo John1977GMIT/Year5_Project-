@@ -1,0 +1,190 @@
+/*
+Student: John Lynam
+ID: G00305534
+Year: 5th Year Semester 9
+
+This code is for the December demonstration for project.
+The code demonstrates the communication through the K64F
+development board, the MSP8266 Wi-Fi module and the mbed
+cloud. The MSP 8266 is flashed to work with freedom Dev
+boards. 
+*/
+
+#include "mbed.h"
+#include "rtos.h"
+#include "config.h"
+#include "security.h"
+#include "easy-connect.h"
+#include "simple-mbed-client.h"
+/*#include "stdio.h"
+#include "stdlib.h"*/
+
+SimpleMbedClient client;
+
+DigitalOut red(LED_RED);
+DigitalOut green(LED_GREEN);
+DigitalOut blue(LED_BLUE);
+
+// We need a way to signal from an interrupt context -> main thread, use a Semaphore for it...
+Semaphore updates(0);
+
+// YOUR CODE HERE
+// Fwd declaration
+void putLightsOn();
+void putLightsOff();
+void putLightsFlashARM();
+void putLightsFlashDISARM();
+void colorChanged(int newColor);
+
+#define STATUS_DISARM   0
+#define STATUS_ARM      1
+#define STATUS_OFF      2
+#define ALARM_STATUS    3
+
+
+// Status changes
+void statusChanged(int newStatus)
+{
+    switch (newStatus)
+    {
+    case STATUS_ARM: 
+     printf("\n\rCalling putLightsFlash red function");
+        putLightsFlashARM();
+        break;
+    case STATUS_DISARM: 
+    printf("\n\rCalling putLightsFlash green function");
+        putLightsFlashDISARM();
+        break;
+    case STATUS_OFF:  
+        putLightsOff();
+        break;
+    }
+}
+
+// Here are our resources:
+// We encode color in 3 bytes [R, G, B] and put it in an integer by providing the color as an hex value (default color: green)
+
+SimpleResourceInt ledStatus = client.define_resource("led/0/STATUS_ARM", STATUS_ARM, &statusChanged);
+SimpleResourceInt ledStatus2 = client.define_resource("led/0/STATUS_DISARM", STATUS_DISARM, &statusChanged);
+//SimpleResourceInt alarmStatus = client.define_resource("alarmStatus/0/ALARM_STATUS",ALARM_STATUS, &statusChanged);
+SimpleResourceString name = client.define_resource("device/0/name", "jan", M2MBase::GET_PUT_ALLOWED, true);//User name
+SimpleResourceString sensorName = client.define_resource("device/0/sensorName", "jan", M2MBase::GET_PUT_ALLOWED, true);//Module Name
+
+// As said above, color is encoded in three bytes
+void putLightsOn()
+{
+    red=0;
+    green=0;
+    blue=0;
+}
+// clear the lights
+void putLightsOff()
+{
+    red=1;
+    green=1;
+    blue=1;
+}
+
+void putLightsFlashARM()
+{
+    red=1;//clear values before loop starts
+    green=1;
+    blue=1;
+    
+    printf("\n\rIn putLightsFlashARM function");
+    int i = 0;
+    
+    for(i=0; i < 5; i++)
+    {
+        printf("\n\rIn 'for' loop red");
+        red=0;//on
+        wait(1);
+        red=1;//off
+        wait(1);
+         
+    }
+
+
+}
+void putLightsFlashDISARM()
+{
+    red=1;//clear values before loop starts
+    green=1;
+    blue=1;
+    
+    printf("\n\rIn putLightsFlashDISARM function");
+    int i = 0;
+    
+    for(i=0; i < 5; i++)
+    {
+        printf("\n\rIn 'for' loop green");
+        green=0;//on
+        wait(1);
+        green=1;//off
+        wait(1);
+          
+    }
+
+
+}
+// Color updated from the cloud,
+void colorChanged(int newColor)
+{
+   /* if (ledStatus == STATUS_ARM)
+    {
+        putLightsFlashARM();
+    }
+    if (ledStatus2 == STATUS_DISARM)
+    {
+        putLightsFlashDISARM();
+    }
+    if (alarmStatus == ALARM_STATUS)
+    {
+        putLightsOn();
+    }*/
+}
+
+// Registered callback for mbed Client
+DigitalOut statusLed(LED2, 1);//Green LED for registration Successfully
+void registered()
+{
+    statusLed = 0;
+    wait(.5);
+    statusLed = 1;
+}
+
+int main(int, char**)
+{
+    sensorName = "Front Window 2";
+    name = "John Lynam";
+    red=1;//active low = off//******
+    green=1;
+    blue=1;
+
+
+    NetworkInterface* network = easy_connect(true);
+    if (!network)
+    {
+        printf("Connect to internet failed... See serial output.\n");
+        return 1;
+    }
+
+    struct MbedClientOptions options = client.get_default_options();
+    options.DeviceType = "Alarm-system";
+    if (!client.setup(options, network))
+    {
+        printf("Setting up mbed_client failed...\n");
+        return 1;
+    }
+
+    client.on_registered(&registered);//verification of registered to function
+    int x =0;
+    for(x = 0; x < 5; x++)
+    {
+        red = 0;
+        wait(1);
+         red = 1;
+        wait(1);
+        }
+
+}
