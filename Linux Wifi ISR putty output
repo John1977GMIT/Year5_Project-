@@ -1,0 +1,184 @@
+//********************************* main **********************************
+
+#include "mbed.h"
+#include "function.h"
+
+Ticker DistanceISR;//Internal ISR
+//DigitalOut led2(LED2);
+ 
+void disFlag() {
+    distance();
+}
+
+int main() {
+    printf("Main\n\r");
+    DistanceISR.attach(&disFlag, 2.0); // the address of the function to be attached (flip) and the interval (2 seconds)
+   
+    // spin in a main loop. flipper will interrupt it to call flip
+    while(1)
+   {
+       
+       printf("\r\nDistance %d ",distance_cm);
+       
+       if( wifiConnection()==0)
+       {
+            printf("True for wifi");
+       }
+       else
+       {
+          wifiConnection();
+       } 
+    }
+  } 
+
+
+//********************************************************************************
+
+#include "mbed.h"
+#include <TCPSocket.h>
+#include <EthInterface.h>
+#include "EthernetInterface.h"
+#include "string.h"
+#include "ESP8266Interface.h"
+#include "hcsr04.h"
+
+ESP8266Interface wifi(D1, D0);
+
+//DigitalOut led1(LED1);
+
+//HCSR04 sensor(D12, D11);
+//set D12 = trigger D11 = echo
+DigitalOut trig = D12;
+DigitalIn echo = D11;
+Timer timer;
+long duration,distance_cm,UltraSonicData;
+
+//Prototypes distance
+long distance();
+long echo_duration();
+long distanceDetect();
+long ultraSonicFlag();
+
+//Prototypes wifi server connections
+int wifiConnection();
+void ClearBuffer();
+char rbuffer[300];
+char alarmBuffer[300];
+int rcount;
+int recCount;
+
+
+int wifiConnection()
+{
+    
+//start of connection to linux machine with wifi
+    printf("Connecting...\n\r");
+    int ret = wifi.connect("john","qwerty12", NSAPI_SECURITY_WPA_WPA2);   
+    if (ret != 0) {
+        printf("\r\n*** WiFi Connection error ***\r\n");
+        return -1;
+    }
+    printf("IP Address is %s\r\n", wifi.get_ip_address());    
+    //create socket
+    TCPSocket sock;
+    sock.open(&wifi);
+   
+    int ret2 = sock.connect("anywherealarm.hopto.org", 8086);//mint server working
+   
+    if(ret2 != 0)//if this is a zero it is connected
+    {
+       printf("*** Socket connection error ***\r\n");
+       return -1;
+    }
+    sock.set_blocking(false);
+    
+   //************************************************************************************************** 
+    /*
+        //isr 100ms
+        if(distance_cm < 10)
+        {
+            led1 = !led1;
+            //send string to server alarm activiated
+            char alarmBuffer[] = "Alarm Intrusion\r\n\r\n";
+            int acount = sock.send(alarmBuffer, sizeof alarmBuffer);
+            printf("sent %d [%.*s]\r\n", acount, strstr(alarmBuffer, "\r\n")-alarmBuffer, alarmBuffer);
+            while( 1) {//waits for something to be in the buffer  (timing issues)   //change to time out function
+            recCount =sock.recv(rbuffer, sizeof(rbuffer) -1);
+            //printf("val = %d",val);
+            if(recCount >1)
+                led1 = 1;
+                break;
+            }
+        }*/
+        //reset flag = 0
+  //************************************************************************************************
+    
+     //sending to java server
+    printf("Sending char[] to ip address...\r\n");
+    char sbuffer[] = "Hello from client JOHN\r\n\r\n";
+    int scount = sock.send(sbuffer, sizeof sbuffer);
+    printf("sent %d [%.*s]\r\n", scount, strstr(sbuffer, "\r\n")-sbuffer, sbuffer);
+    
+    //recieve from java server
+    while( 1) {//waits for something to be in the buffer  (timing issues)
+       // int32_t val =sock.recv(rbuffer, sizeof(rbuffer) -1);
+         rcount =sock.recv(rbuffer, sizeof(rbuffer) -1);
+        //printf("val = %d",val);
+        if(rcount >0)
+            break;
+    }
+    printf("recv %d [%.*s]\r\n", rcount, strstr(rbuffer, "\r\n")-rbuffer, rbuffer);
+    printf("Done\r\n"); 
+    sock.close();
+    wifi.disconnect();
+    return 0;
+}
+    //End of connection to linux machine with wifi  
+ 
+void ClearBuffer(){
+    for(int i = 0; i <= rcount; i++)
+        rbuffer[i] = '\0';
+} 
+
+//dictance
+long distance()
+{
+    duration = echo_duration();
+    distance_cm = (duration/2)/29.1;
+    UltraSonicData = distance_cm;
+    return distance_cm;
+}
+
+long echo_duration()
+{
+    //printf("in echo duration function\r\n");
+    timer.reset();  //reset timer
+    trig=1;   // trigger low
+    wait_us(2); //  wait
+    trig=0;   //  trigger high
+    wait_us(10);
+    trig=1;  // trigger low
+    while(!echo); // start pulseIN
+    timer.start();
+    while(echo);
+    timer.stop();
+    //printf("end echo duration function\r\n");
+    return timer.read_us();
+
+}
+
+long distanceDetect()
+{
+    DigitalOut led(LED_RED);
+    DigitalOut led2(LED_BLUE);
+    //an action to demo distance change
+    led = !led; // toggle led
+    wait(0.2f);
+    led = !led2; // toggle led
+    wait(0.2f);
+    printf("Distance change detected: %d", distance_cm);
+    printf("\n\r");
+    return distance_cm;
+    
+}
+
