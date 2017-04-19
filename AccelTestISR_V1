@@ -1,0 +1,52 @@
+
+#include "mbed.h"
+#include "FXOS8700Q.h"
+#include "function.h"
+
+Ticker flipper;
+
+void flash() {
+    printf("I am in the ISR");
+    AcellFunction();
+}
+
+
+long AcellFunction();
+
+int main() { 
+     flipper.attach(&flash, 2.0);     
+     //AcellFunction();
+     //printf("JOHN FXOS8700Q ACC: X=%1.4f Y=%1.4f Z=%1.4f  John\r\n ", acc_data.x, acc_data.y, acc_data.z);
+     while(1)
+     {
+       //printf("I am back in main while(1)\r\n");  
+    }
+}
+            
+//****************************************************************************
+
+#include "FXOS8700Q.h"
+#include "mbed.h"
+
+FXOS8700Q_acc acc( PTE25, PTE24, FXOS8700CQ_SLAVE_ADDR1); // Proper Ports and I2C Address for K64F Freedom board
+ 
+Serial pc(USBTX, USBRX);
+ 
+MotionSensorDataUnits acc_data;
+
+
+long AcellFunction();
+
+long AcellFunction()
+{ 
+    
+    acc.enable();
+    printf("\r\n\nFXOS8700Q Who Am I= %X\r\n", acc.whoAmI());
+        //while (true) {
+            acc.getAxis(acc_data);
+            printf("FXOS8700Q ACC: X=%1.4f Y=%1.4f Z=%1.4f  \r\n", acc_data.x, acc_data.y, acc_data.z);
+            
+            wait(1.0);
+            printf("I am at the end of the While(true)\r\n");
+        //}
+}
