@@ -1,0 +1,110 @@
+#include "mbed.h"
+#include "acellFunction.h"
+//#include "ultraSonicFunc.h"
+
+int main()
+{
+    acellFunc();
+  
+}
+
+//*********************************
+
+#include "mbed.h"
+#include "FXOS8700Q.h"
+#include "ultraSonicFunc.h"
+ 
+//I2C lines for FXOS8700Q accelerometer/magnetometer
+FXOS8700Q_acc acc( PTE25, PTE24, FXOS8700CQ_SLAVE_ADDR1);
+FXOS8700Q_mag mag( PTE25, PTE24, FXOS8700CQ_SLAVE_ADDR1);
+ 
+//Temrinal enable 
+//SerialRPCInterface SerialInterface (USBTX, USBRX);
+
+//define Funtion for RPC
+void getdeltaY(char * input,char * output);
+void getdeltaX(char * input,char * output);
+
+//RPCVariable<float> rpcdeltaY(&getdeltaY, "deltaY");
+//RPCVariable<float> rpcdeltaX(&getdeltaX, "deltaX");
+ 
+MotionSensorDataUnits mag_data;
+MotionSensorDataUnits acc_data;
+
+int acellFunc();
+
+float deltaY = 0;
+float deltaX = 0;
+float deltaZ = 0;
+
+int acellFunc() 
+{
+    float faX, faY, faZ;
+    float fmX, fmY, fmZ;
+    float faX_prev=0,faY_prev=0,faZ_prev=0;
+    float deltaY = 0;
+    float deltaX = 0;
+    float deltaZ = 0;
+  
+    acc.enable();
+    printf("\r\n\nFXOS8700Q Who Am I= %X\r\n", acc.whoAmI());
+
+    while (true) 
+    {
+        acc.getAxis(acc_data);
+        mag.getAxis(mag_data);
+        printf("\n\rAcellerometer OK\n\r");
+        //printf("FXOS8700Q ACC: X=%1.4f Y=%1.4f Z=%1.4f\r\n", acc_data.x, acc_data.y, acc_data.z);//printing out X,Y,Z Axis of Accel.
+        //printf("          MAG: X=%4.1f Y=%4.1f Z=%4.1f\r\n", mag_data.x, mag_data.y, mag_data.z);//printing out X,Y,Z Axis of Magn.
+        
+        acc.getX(&faX);
+        deltaX = abs(faX-faX_prev);// absolute value of delta X 
+        
+        if(deltaX >=.300)// if the difference is greater thn .3 in positive or negative 
+        {
+           //needs to be calabrated 
+            printf(" \r\ndeltaX=%1.4f\n ",deltaX);
+             printf(" \r\nX door open ");
+        }
+        
+        acc.getY(&faY);
+        deltaY = abs(faY-faY_prev);
+        
+        
+        if(deltaY >=1)
+        {
+           //needs to be calabrated
+            //printf("\r\nY Door Open \n ",deltaY);
+        }
+        acc.getZ(&faZ);
+        deltaZ = abs(faZ-faZ_prev);
+        
+        if(deltaZ >=.010)
+        {
+           
+            //would a for loop here be of any use to cycle????
+            wait(5);//5 second delay 
+             printf("\r\n Acellerometer Activated \n");
+              distanceFunc();
+             
+             //condition to call ISR for UltraSonic JL
+        }
+        
+        
+        wait(1.0);
+    }
+}
+
+//************************************************************
+
+#include "mbed.h"
+#include "hcsr04.h"
+
+//D12 TRIGGER D11 ECHO
+   HCSR04 sensor(D12, D11); 
+int distanceFunc() {        
+     long distance = sensor.distance();   
+      printf("distanza  %d  \r",distance);
+      wait(1.0); // 1 sec  
+}
+
