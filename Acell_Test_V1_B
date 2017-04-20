@@ -1,0 +1,69 @@
+#include "mbed.h"
+#include "function.h"
+
+int main()
+{
+    acellFunc();
+}
+
+//***********************************************************************
+
+#include "mbed.h"
+#include "FXOS8700Q.h"
+ 
+FXOS8700Q_acc acc( PTE25, PTE24, FXOS8700CQ_SLAVE_ADDR1);
+  
+MotionSensorDataUnits mag_data;
+MotionSensorDataUnits acc_data;
+
+int acellFunc();
+
+float deltaY = 0;
+float deltaX = 0;
+float deltaZ = 0;
+
+int acellFunc() 
+{
+    float faX, faY, faZ;
+    float faX_prev=0,faY_prev=0,faZ_prev=0;
+    float deltaY = 0;
+    float deltaX = 0;
+    float deltaZ = 0;
+  
+    acc.enable();
+    printf("\r\n\nFXOS8700Q Who Am I= %X\r\n", acc.whoAmI());
+
+    while (true) 
+    {
+        acc.getAxis(acc_data);
+        printf("FXOS8700Q ACC: X=%1.4f Y=%1.4f Z=%1.4f\r\n", acc_data.x, acc_data.y, acc_data.z);
+        
+        acc.getX(&faX);
+        deltaX = abs(faX-faX_prev);// absolute value of delta X 
+        
+        if(deltaX >=.300)
+        {
+           //needs to be calabrated 
+            printf(" \r\ndeltaX=%1.4f\n ",deltaX);
+             printf(" \r\nX door open ");
+        }
+        
+        acc.getY(&faY);
+        deltaY = abs(faY-faY_prev);
+                
+        if(deltaY >=1)
+        {
+            //printf("\r\nY Door Open \n ",deltaY);
+        }
+        acc.getZ(&faZ);
+        deltaZ = abs(faZ-faZ_prev);
+        
+        if(deltaZ >=.010)
+        {
+             printf("\r\n DOOR OPEN \n");
+             //condition to call ISR for UltraSonic JL
+             wait(5);//5 second delay             
+        }        
+        wait(1.0);
+    }
+}
