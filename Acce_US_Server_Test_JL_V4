@@ -1,0 +1,223 @@
+#include "mbed.h"
+#include "acellFunction.h"
+#include "ServerFunc.h"
+
+int main()
+{
+    //acellFunc();
+    ServerFunc();
+  
+}
+
+//********************************************************************
+
+#include "mbed.h"
+#include <TCPSocket.h>
+#include <EthInterface.h>
+#include "EthernetInterface.h"
+#include "string.h"
+#include "ESP8266Interface.h"
+ESP8266Interface wifi(D1, D0);
+void ClearBuffer();
+char rbuffer[300];
+int rcount;
+int ServerFunc() {
+    printf("Main\n\r"); 
+    
+    char userName[] = "john";
+    char userName2[] = "lynam";
+     
+   // printf("Enter name: ");
+//    scanf("%s",userName);
+    strcat(userName, "\n");
+    strcat(userName2, "\n");
+   printf("\r\nUser: %s User2: %s\tSize1: %d\tSize2: %d", userName, userName2, sizeof(userName), sizeof(userName2));
+    
+    
+    printf("\r\nConnecting...\n\r");
+    int ret = wifi.connect("john","qwerty12", NSAPI_SECURITY_WPA_WPA2);
+    //int ret = wifi.connect("UPC928949","BBRLGCOF", NSAPI_SECURITY_WPA_WPA2);
+    if (ret != 0) {
+        printf("\r\n*** WiFi Connection error ***\r\n");
+        return -1;
+    }
+    printf("IP Address is %s\r\n", wifi.get_ip_address());
+    
+    
+    //create socket
+    TCPSocket sock;
+    sock.open(&wifi);
+    int ret2 = sock.connect("anywherealarm.hopto.org", 8082);
+     //int ret2 = sock.connect("92.235.47.80", 8086);
+    if(ret2 != 0)
+    {
+       printf("*** Socket connection error ***\r\n");
+       return -1;
+    }
+    sock.set_blocking(false);
+    //sending to java server
+   
+    
+
+    int scount = sock.send(userName, sizeof userName);
+    
+     printf("sent %d [%.*s]\r\n", scount, strstr(userName, "\r\n")-userName, userName);
+    //printf("sent %d [%.*s]\r\n", scount, strstr(userName, "\r\n")-userName, userName);//ORG
+    
+    //recieve from java server
+    while( 1) {//waits for something to be in the buffer  (timing issues)
+        int32_t val =sock.recv(rbuffer, sizeof(rbuffer) -1);
+        //printf("val = %d",val);
+        if(val >0)
+            break;
+    }
+    printf("recv %d [%.*s]\r\n", rcount, strstr(rbuffer, "\r\n")-rbuffer, rbuffer);
+    printf("Done name 1\r\n");
+    sock.close();
+    wait(2);
+     printf("Name 2\r\n");
+    sock.open(&wifi);
+    sock.connect("anywherealarm.hopto.org", 8082);
+    //sock.connect("92.235.47.80", 8086);
+    sock.set_blocking(false);
+    sock.send(userName2, sizeof userName2);
+    ClearBuffer();
+    printf("sent %d [%.*s]\r\n", scount, strstr(userName2, "\r\n")-userName2, userName2);
+    while( 1) {//waits for something to be in the buffer  (timing issues)
+        int32_t val =sock.recv(rbuffer, sizeof(rbuffer) -1);
+        //printf("val = %d",val);
+        if(val >0)
+            break;
+    }
+    
+    wifi.disconnect();
+}
+
+void ClearBuffer(){
+    for(int i = 0; i <= rcount; i++)
+        rbuffer[i] = '\0';
+}
+
+//****************************************************************
+//mbed_app.json
+{
+    "config": {
+        "wifi-ssid": {
+            "help": "WiFi SSID",
+            "value": "\"SSID\""
+        },
+        "wifi-password": {
+            "help": "WiFi Password",
+            "value": "\"Password\""
+        }
+    },
+    "target_overrides": {
+        "UBLOX_EVK_ODIN_W2": {
+            "target.device_has": ["EMAC"]
+        }
+    }
+}
+
+//***************************************************
+
+#include "mbed.h"
+#include "FXOS8700Q.h"
+#include "ultraSonicFunc.h"
+ 
+//I2C lines for FXOS8700Q accelerometer/magnetometer
+FXOS8700Q_acc acc( PTE25, PTE24, FXOS8700CQ_SLAVE_ADDR1);
+FXOS8700Q_mag mag( PTE25, PTE24, FXOS8700CQ_SLAVE_ADDR1);
+ 
+//Temrinal enable 
+//SerialRPCInterface SerialInterface (USBTX, USBRX);
+
+//define Funtion for RPC
+void getdeltaY(char * input,char * output);
+void getdeltaX(char * input,char * output);
+
+//RPCVariable<float> rpcdeltaY(&getdeltaY, "deltaY");
+//RPCVariable<float> rpcdeltaX(&getdeltaX, "deltaX");
+ 
+MotionSensorDataUnits mag_data;
+MotionSensorDataUnits acc_data;
+
+int acellFunc();
+
+float deltaY = 0;
+float deltaX = 0;
+float deltaZ = 0;
+
+int acellFunc() 
+{
+    float faX, faY, faZ;
+    float fmX, fmY, fmZ;
+    float faX_prev=0,faY_prev=0,faZ_prev=0;
+    float deltaY = 0;
+    float deltaX = 0;
+    float deltaZ = 0;
+  
+    acc.enable();
+    printf("\r\n\nFXOS8700Q Who Am I= %X\r\n", acc.whoAmI());
+
+    while (true) 
+    {
+        acc.getAxis(acc_data);
+        mag.getAxis(mag_data);
+        printf("\n\rAcellerometer OK\n\r");
+        //printf("FXOS8700Q ACC: X=%1.4f Y=%1.4f Z=%1.4f\r\n", acc_data.x, acc_data.y, acc_data.z);//printing out X,Y,Z Axis of Accel.
+        //printf("          MAG: X=%4.1f Y=%4.1f Z=%4.1f\r\n", mag_data.x, mag_data.y, mag_data.z);//printing out X,Y,Z Axis of Magn.
+        
+        acc.getX(&faX);
+        deltaX = abs(faX-faX_prev);// absolute value of delta X 
+        
+        if(deltaX >=.300)// if the difference is greater thn .3 in positive or negative 
+        {
+           //needs to be calabrated 
+            printf(" \r\ndeltaX=%1.4f\n ",deltaX);
+             printf(" \r\nX door open ");
+        }
+        
+        acc.getY(&faY);
+        deltaY = abs(faY-faY_prev);
+        
+        
+        if(deltaY >=1)
+        {
+           //needs to be calabrated
+            //printf("\r\nY Door Open \n ",deltaY);
+        }
+        acc.getZ(&faZ);
+        deltaZ = abs(faZ-faZ_prev);
+        
+        if(deltaZ >=.010)
+        {
+           
+            //would a for loop here be of any use to cycle????
+            wait(5);//5 second delay 
+             printf("\r\n Acellerometer Activated \n");
+              distanceFunc();
+              
+             
+             //condition to call ISR for UltraSonic JL
+        }
+        
+        
+        wait(1.0);
+    }
+}
+
+//*************************************************************************************
+
+#include "mbed.h"
+#include "hcsr04.h"
+
+//D12 TRIGGER D11 ECHO
+   HCSR04 sensor(D12, D11); 
+int distanceFunc() {        
+     long distance = sensor.distance();   
+      printf("distanza  %d  \r",distance);
+      wait(1.0); // 1 sec  
+}
+//*********************************************
+
+
